@@ -27,10 +27,12 @@
     $.infinitescroll.defaults = {
         loading: {
             finished: undefined,
-            finishedMsg: "<em>Congratulations, you've reached the end of the internet.</em>",
+            hintMsg: "<em>Scroll down to load more entries...</em>",
+            loadingMsg: "<em>Loading more entries...</em>",
+            finishedMsg: "<em>All entries loaded.</em>",
+            permanent: false,
             img: "http://www.infinite-scroll.com/loading.gif",
             msg: null,
-            msgText: "<em>Loading the next set of posts...</em>",
             selector: null,
             speed: 'fast',
             start: undefined
@@ -66,7 +68,7 @@
 
     $.infinitescroll.prototype = {
 
-        /*	
+        /*
             ----------------------------
             Private methods
             ----------------------------
@@ -133,30 +135,44 @@
             // loading.selector - if we want to place the load message in a specific selector, defaulted to the contentSelector
             opts.loading.selector = opts.loading.selector || opts.contentSelector;
 
-            // Define loading.msg
-            opts.loading.msg = $('<div id="infscr-loading"><img alt="Loading..." src="' + opts.loading.img + '" /><div>' + opts.loading.msgText + '</div></div>');
+            if (opts.loading.img) {
+                // Preload loading.img
+                (new Image()).src = opts.loading.img;
+                opts.loading.loadingMsg = '<img alt="Loading..." src="' + opts.loading.img + '" /><div>' + opts.loading.loadingMsg + '</div>';
+            }
 
-            // Preload loading.img
-            (new Image()).src = opts.loading.img;
+            // Define loading.msg
+            opts.loading.msg = $('<div id="infscr-loading"></div>');
 
             // distance from nav links to bottom
             // computed as: height of the document + top offset of container - top offset of nav link
             opts.pixelsFromNavToBottom = $(document).height() - $(opts.navSelector).offset().top;
 
+            $(opts.navSelector).hide();
+            opts.loading.msg.hide().appendTo(opts.loading.selector);
+
+            if (opts.loading.permanent && opts.loading.hintMsg) {
+                opts.loading.msg
+                    .html(opts.loading.hintMsg)
+                    .show();
+            }
+
             // determine loading.start actions
             opts.loading.start = opts.loading.start || function() {
-
-                $(opts.navSelector).hide();
                 opts.loading.msg
-                .appendTo(opts.loading.selector)
-                .show(opts.loading.speed, function () {
-                    beginAjax(opts);
-                });
+                    .html(opts.loading.loadingMsg)
+                    .show(opts.loading.speed, function () {
+                        beginAjax(opts);
+                    });
             };
 
             // determine loading.finished actions
             opts.loading.finished = opts.loading.finished || function() {
-                opts.loading.msg.fadeOut('normal');
+                if (opts.loading.permanent && opts.loading.hintMsg) {
+                    opts.loading.msg.html(opts.loading.hintMsg);
+                } else {
+                    opts.loading.msg.fadeOut('normal');
+                }
             };
 
             // callback loading
@@ -203,7 +219,7 @@
             } else if (path.match(/^(.*?)\b2\b(.*?$)/)) {
                 path = path.match(/^(.*?)\b2\b(.*?$)/).slice(1);
 
-                // if there is any 2 in the url at all.    
+                // if there is any 2 in the url at all.
             } else if (path.match(/^(.*?)2(.*?$)/)) {
 
                 // page= is used in django:
@@ -422,15 +438,15 @@
                 return;
             }
 
-            opts.loading.msg
-            .find('img')
-            .hide()
-            .parent()
-            .find('div').html(opts.loading.finishedMsg).animate({ opacity: 1 }, 2000, function () {
-                $(this).parent().fadeOut('normal');
-            });
+            var msg = opts.loading.msg.html(opts.loading.finishedMsg);
 
-            // user provided callback when done    
+            if (!opts.loading.permanent) {
+                msg.animate({ opacity: 1 }, 2000, function () {
+                    $(this).parent().fadeOut('normal');
+                });
+            }
+
+            // user provided callback when done
             opts.errorCallback.call($(opts.contentSelector)[0],'done');
 
         },
@@ -449,7 +465,7 @@
 
         },
 
-        /*	
+        /*
             ----------------------------
             Public methods
             ----------------------------
@@ -478,6 +494,11 @@
             this._pausing('resume');
         },
 
+        istablecontent: function infscr_istablecontent() {
+            var $el = $(this.options.contentSelector);
+            return $el.is('table') || $el.is('tbody');
+        },
+
         // Retrieve next set of content items
         retrieve: function infscr_retrieve(pageNum) {
 
@@ -495,7 +516,7 @@
                 instance._debug('heading into ajax', path);
 
                 // if we're dealing with a table we can't use DIVs
-                box = $(opts.contentSelector).is('table') ? $('<tbody/>') : $('<div/>');
+                box = instance.istablecontent() ? $('<tbody/>') : $('<div/>');
 
                 desturl = path.join(opts.state.currPage);
 
@@ -535,7 +556,7 @@
                             success: function(data, textStatus, jqXHR) {
                                 condition = (typeof (jqXHR.isResolved) !== 'undefined') ? (jqXHR.isResolved()) : (textStatus === "success" || textStatus === "notmodified");
                                 if(opts.appendCallback) {
-                                    // if appendCallback is true, you must defined template in options. 
+                                    // if appendCallback is true, you must defined template in options.
                                     // note that data passed into _loadcallback is already an html (after processed in opts.template(data)).
                                     if(opts.template != undefined) {
                                         var theData = opts.template(data);
@@ -620,7 +641,7 @@
     }
 
 
-    /*	
+    /*
         ----------------------------
         Infinite Scroll function
         ----------------------------
@@ -634,7 +655,7 @@
         - https://github.com/jsor/jcarousel/blob/master/lib/jquery.jcarousel.js
 
         Masonry
-        - https://github.com/desandro/masonry/blob/master/jquery.masonry.js		
+        - https://github.com/desandro/masonry/blob/master/jquery.masonry.js
 
 */
 
@@ -645,7 +666,7 @@
 
         switch (thisCall) {
 
-            // method 
+            // method
             case 'string':
 
                 var args = Array.prototype.slice.call(arguments, 1);
@@ -671,7 +692,7 @@
 
             break;
 
-            // creation 
+            // creation
             case 'object':
 
                 this.each(function () {
@@ -707,7 +728,7 @@
 
 
 
-    /* 
+    /*
      * smartscroll: debounced scroll event for jQuery *
      * https://github.com/lukeshumard/smartscroll
      * Based on smartresize by @louis_remi: https://github.com/lrbabe/jquery.smartresize.js *
